@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.routes import router as api_router
 from app.agent_routes import router as agents_router
+from app.tier_routes import router as tier_router
 
 app = FastAPI(title="OperatorX AI Backend")
 
@@ -12,4 +13,4 @@ def root():
 
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
-
+app.include_router(tier_router, prefix="/api/v1")
