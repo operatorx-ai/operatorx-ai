@@ -17,6 +17,14 @@ class OrchestrateResponse(BaseModel):
     plan: List[str]
 
 
+@router.get("", summary="List available agents")
+def list_agents():
+    """
+    Returns all agents registered in the AgentRegistry.
+    """
+    return {"agents": registry.list()}
+
+
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     agent = registry.get("orchestrator")
@@ -29,4 +37,5 @@ def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
     result = agent.run(request.model_dump(), ctx)
 
     return OrchestrateResponse(plan=result["plan"])
+
 
