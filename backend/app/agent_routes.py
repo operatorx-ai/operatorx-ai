@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List
 
 from app.agents.base import AgentContext
-from app.agents.orchestrator import OrchestratorAgent
+from app.agents.registry import registry
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -19,13 +19,14 @@ class OrchestrateResponse(BaseModel):
 
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
-    agent = OrchestratorAgent()
+    agent = registry.get("orchestrator")
 
     ctx = AgentContext(
-        tier="personal",  # we’ll make this dynamic later
+        tier="personal",
         request_id=None
     )
 
     result = agent.run(request.model_dump(), ctx)
 
     return OrchestrateResponse(plan=result["plan"])
+
