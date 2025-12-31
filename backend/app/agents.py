@@ -2,6 +2,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
 
+from app.agents.base import AgentContext
+from app.agents.orchestrator import OrchestratorAgent
+
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
@@ -16,15 +19,13 @@ class OrchestrateResponse(BaseModel):
 
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 def orchestrate(request: OrchestrateRequest) -> OrchestrateResponse:
-    """
-    Orchestrator stub.
-    This simulates how an agent would break a goal into steps.
-    """
-    plan = [
-        f"Analyze goal: {request.goal}",
-        "Evaluate constraints",
-        "Generate execution plan",
-        "Return structured response",
-    ]
+    agent = OrchestratorAgent()
 
-    return OrchestrateResponse(plan=plan)
+    ctx = AgentContext(
+        tier="personal",  # we’ll make this dynamic later
+        request_id=None
+    )
+
+    result = agent.run(request.model_dump(), ctx)
+
+    return OrchestrateResponse(plan=result["plan"])
