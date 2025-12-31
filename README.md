@@ -147,7 +147,7 @@ Future work includes:
 
 ## 👤 Author
 
-**Nick Henderson**  
+**Nicolas Henderson**  
 Founder – OperatorX AI  
 
 This project is built as a demonstration of real-world AI system design, engineering discipline, and platform thinking.
