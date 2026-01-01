@@ -16,7 +16,7 @@ jobs:
    strategy:
      fail-fast: false
      matrix:
-       language: [ "python", "javascript-typescript" ]
+       language: [ "python" ]
    steps:
      - name: Checkout repository
        uses: actions/checkout@v4
@@ -24,10 +24,7 @@ jobs:
        uses: github/codeql-action/init@v3
        with:
          languages: ${{ matrix.language }}
-         # You can later switch to "security-extended" for deeper scanning
          queries: security-and-quality
-     # For Python projects, CodeQL can often auto-build. If you later add build steps,
-     # you can replace this with your own dependency install/test build.
      - name: Autobuild
        uses: github/codeql-action/autobuild@v3
      - name: Perform CodeQL Analysis
