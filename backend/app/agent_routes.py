@@ -2,30 +2,33 @@ from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel
 from typing import List
 
-# Agent execution context and registry
+# Agent execution context object passed through the system
 from app.agents.base import AgentContext
+
+# Registry used only for discovery (not execution)
 from app.agents.registry import registry
 
-# Tier normalization helper (personal / business / government)
+# Helper to normalize deployment tier values
 from app.tier import normalize_tier
 
-# Shared core execution engine (single execution path)
+# Shared core engine responsible for routing and execution
 from app.core.engine import engine
 
-# Router for all agent-related endpoints
+# Router grouping all agent-related endpoints
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
-# ----------------------------
+# ============================================================
 # Request / Response Models
-# ----------------------------
+# ============================================================
 
 class OrchestrateRequest(BaseModel):
     """
     Input payload for orchestration requests.
 
-    Represents a high-level user or system goal along with optional
-    constraints that may influence planning or execution behavior.
+    Represents a high-level goal plus optional constraints.
+    This keeps the API contract simple while allowing future
+    expansion without breaking clients.
     """
     goal: str
     constraints: List[str] = []
@@ -33,33 +36,91 @@ class OrchestrateRequest(BaseModel):
 
 class OrchestrateResponse(BaseModel):
     """
-    Structured response returned by the orchestrator.
+    Public-facing response returned by the orchestrator.
 
-    The plan is intentionally returned as a list to keep the API
-    deterministic, readable, and easy to extend in later phases.
+    The plan is intentionally a list of steps to ensure:
+    - deterministic output
+    - easy inspection/debugging
+    - future compatibility with UI rendering
     """
     plan: List[str]
 
 
-# ----------------------------
+# ============================================================
 # Routes
-# ----------------------------
+# ============================================================
 
 @router.get("", summary="List available agents")
 def list_agents():
     """
-    Returns all agents currently registered in the AgentRegistry.
+    Lists all agents registered in the system.
 
     This endpoint supports:
     - Debugging and observability
     - Platform introspection
-    - Future admin and UI tooling
+    - Admin tooling and dashboards (future)
     """
     return {"agents": registry.list()}
 
 
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 def orchestrate(
+    request_body: OrchestrateRequest,
+    request: Request,
+    x_operatorx_tier: str | None = Header(
+        default=None,
+        alias="X-OperatorX-Tier"
+    ),
+) -> OrchestrateResponse:
+    """
+    Orchestrates a plan using the shared Core Engine.
+
+    Architectural intent:
+    - The API layer remains thin and declarative
+    - All execution flows through the CoreEngine
+    - Deployment-specific behavior is controlled via tier context
+    - Request tracing is preserved using request_id propagation
+    """
+
+    # --------------------------------------------------------
+    # Build execution context
+    # --------------------------------------------------------
+    # Tier controls how the system behaves (personal/business/gov).
+    # request_id enables end-to-end tracing across middleware,
+    # engine logs, agents, and future observability tooling.
+    ctx = AgentContext(
+        tier=normalize_tier(x_operatorx_tier),
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    # --------------------------------------------------------
+    # Delegate execution to the Core Engine
+    # --------------------------------------------------------
+    # The engine is the single execution entry point.
+    # It resolves the agent, runs it, and handles errors/logging.
+    engine_result = engine.run_agent(
+        "orchestrator",
+        request_body.model_dump(),
+        ctx
+    )
+
+    # --------------------------------------------------------
+    # Handle execution errors gracefully
+    # --------------------------------------------------------
+    # Phase 2 keeps error handling simple and consistent.
+    if not engine_result.ok:
+        return OrchestrateResponse(
+            plan=[f"ERROR: {engine_result.error}"]
+        )
+
+    # --------------------------------------------------------
+    # Return structured response
+    # --------------------------------------------------------
+    # Only return public output — internal metadata stays
+    # inside the engine layer.
+    return OrchestrateResponse(
+        plan=engine_result.output["plan"]
+    )
     request_body: OrchestrateRequest,
     request: Request,
     x_operatorx_tier: str | None = Header(
