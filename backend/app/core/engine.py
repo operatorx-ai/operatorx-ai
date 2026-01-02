@@ -17,7 +17,7 @@ from app.core.memory import memory_store
 # ------------------------------------------------------------
 # Logging
 # ------------------------------------------------------------
-# This logger name matches what we used earlier so logs show up clean.
+# Use a named logger so logs are easy to filter later.
 logger = logging.getLogger("operatorx.core.engine")
 
 
@@ -31,14 +31,18 @@ class EngineResult:
 
     Why this exists:
     - Keeps outputs consistent across all agents
-    - Supports error handling in one place
+    - Centralizes success/error reporting
     - Allows future metadata (timing, traces, eval scores, etc.)
     """
     agent: str
     request_id: Optional[str]
     tier: str
     output: Dict[str, Any]
+
+    # True when execution succeeds; False if an error occurs
     ok: bool = True
+
+    # Human-readable error message when ok=False
     error: Optional[str] = None
 
 
@@ -53,14 +57,14 @@ class CoreEngine:
     ✅ Resolve an agent by name
     ✅ Run it with input_data + AgentContext
     ✅ Apply consistent logging + error handling
-    ✅ Optionally store lightweight memory per request_id
+    ✅ Store lightweight memory per request_id (debugging)
 
-    Later phases:
+    Later phases may add:
     - routing rules
     - policy enforcement
     - retries
     - evaluation hooks
-    - persistence
+    - persistence (Redis/Postgres/etc.)
     """
 
     def run_agent(
@@ -72,9 +76,10 @@ class CoreEngine:
         """
         Main execution path.
 
-        agent_name: name of agent (ex: "orchestrator")
-        input_data: dict payload to send into the agent
-        ctx: AgentContext (tier + request_id)
+        Args:
+            agent_name: name of agent (ex: "orchestrator")
+            input_data: dict payload to send into the agent
+            ctx: AgentContext (tier + request_id)
         """
 
         # --------------------------------------------
@@ -112,7 +117,7 @@ class CoreEngine:
                 agent=agent_name,
                 request_id=ctx.request_id,
                 tier=ctx.tier,
-                output={},        # ✅ correct indentation
+                output={},
                 ok=False,
                 error=str(e),
             )
@@ -159,7 +164,7 @@ class CoreEngine:
                 agent=agent_name,
                 request_id=ctx.request_id,
                 tier=ctx.tier,
-                output={},        # ✅ correct indentation
+                output={},
                 ok=False,
                 error=str(e),
             )
@@ -168,160 +173,4 @@ class CoreEngine:
 # ------------------------------------------------------------
 # Singleton engine instance (simple for Phase 2)
 # ------------------------------------------------------------
-engine = CoreEngine()
-    error: Optional[str] = None
-
-
-# ============================================================
-# Core Engine
-# ============================================================
-
-class CoreEngine:
-    """
-    Shared core engine responsible for agent execution.
-
-    Architectural responsibilities:
-    - Central routing and execution control
-    - Isolation of execution logic from API layer
-    - Consistent logging and error handling
-    - Tier-aware execution boundaries
-
-    Phase 2 intentionally keeps this lightweight while
-    establishing strong structural foundations.
-    """
-
-    def run_agent(
-        self,
-        agent_name: str,
-        input_data: Dict[str, Any],
-        ctx: AgentContext,
-    ) -> EngineResult:
-        """
-        Executes a single agent within a controlled environment.
-
-        Args:
-            agent_name: Name of the agent to execute
-            input_data: Structured input payload
-            ctx: Execution context (tier, request_id)
-
-        Returns:
-            EngineResult with success flag and output/error
-        """
-
-        # ----------------------------------------------------
-        # Log execution start
-        # ----------------------------------------------------
-        logger.info(
-            "engine.run_agent start agent=%s tier=%s request_id=%s",
-            agent_name,
-            ctx.tier,
-            ctx.request_id,
-        )
-
-        # ----------------------------------------------------
-        # Resolve agent from registry
-        # ----------------------------------------------------
-        try:
-            agent = registry.get(agent_name)
-        except Exception:
-            # Unknown or unregistered agent
-            logger.warning(
-                "engine.run_agent unknown agent=%s tier=%s request_id=%s",
-                agent_name,
-                ctx.tier,
-                ctx.request_id,
-            )
-            return EngineResult(
-                agent=agent_name,
-                request_id=ctx.request_id,
-                tier=ctx.tier,
-                output={},
-                ok=False,
-                error=f"Unknown agent: {agent_name}",
-            )
-
-        # ----------------------------------------------------
-        # Execute agent safely
-        # ----------------------------------------------------
-        try:
-            result = agent.run(input_data, ctx)
-
-            logger.info(
-                "engine.run_agent success agent=%s tier=%s request_id=%s",
-                agent_name,
-                ctx.tier,
-                ctx.request_id,
-            )
-
-            return EngineResult(
-                agent=agent_name,
-                request_id=ctx.request_id,
-                tier=ctx.tier,
-                output=result,
-                ok=True,
-                error=None,
-            )
-
-        except Exception:
-            # Catch unexpected runtime errors to protect the system
-            logger.exception(
-                "engine.run_agent failure agent=%s tier=%s request_id=%s",
-                agent_name,
-                ctx.tier,
-                ctx.request_id,
-            )
-            return EngineResult(
-                agent=agent_name,
-                request_id=ctx.request_id,
-                tier=ctx.tier,
-                output={},
-                ok=False,
-                error="Agent execution failed",
-            )
-
-
-# Singleton engine instance used across the application
-engine = CoreEngine()
-                output={},
-                ok=False,
-                error=f"Unknown agent: {agent_name}",
-            )
-
-        try:
-            result = agent.run(input_data, ctx)
-
-            logger.info(
-                "engine.run_agent success agent=%s tier=%s request_id=%s",
-                agent_name,
-                ctx.tier,
-                ctx.request_id,
-            )
-
-            return EngineResult(
-                agent=agent_name,
-                request_id=ctx.request_id,
-                tier=ctx.tier,
-                output=result,
-                ok=True,
-                error=None,
-            )
-
-        except Exception as e:
-            # Unexpected runtime error during agent execution
-            logger.exception(
-                "engine.run_agent failure agent=%s tier=%s request_id=%s",
-                agent_name,
-                ctx.tier,
-                ctx.request_id,
-            )
-            return EngineResult(
-                agent=agent_name,
-                request_id=ctx.request_id,
-                tier=ctx.tier,
-                output={},
-                ok=False,
-                error="Agent execution failed",
-            )
-
-
 engine = CoreEngine()
