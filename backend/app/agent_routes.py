@@ -8,10 +8,10 @@ from app.agents.base import AgentContext
 # Registry used only for discovery (not execution)
 from app.agents.registry import registry
 
-# Helper to normalize deployment tier values
+# Helper to normalize deployment tier values (personal/business/government)
 from app.tier import normalize_tier
 
-# Shared core engine responsible for routing and execution
+# Shared core engine responsible for routing + execution
 from app.core.engine import engine
 
 # Router grouping all agent-related endpoints
@@ -27,13 +27,97 @@ class OrchestrateRequest(BaseModel):
     Input payload for orchestration requests.
 
     Represents a high-level goal plus optional constraints.
-    This keeps the API contract simple while allowing future
-    expansion without breaking clients.
+    Keeping this small makes the API stable while we iterate.
     """
     goal: str
     constraints: List[str] = []
 
 
+class OrchestrateResponse(BaseModel):
+    """
+    Public-facing response returned by the orchestrator.
+
+    We return a simple list of steps:
+    - easy to debug
+    - easy to display in a UI later
+    - easy to extend (add metadata later without breaking clients)
+    """
+    plan: List[str]
+
+
+# ============================================================
+# Routes
+# ============================================================
+
+@router.get("", summary="List available agents")
+def list_agents():
+    """
+    Lists all agents registered in the system.
+
+    Purpose:
+    - Debugging and observability
+    - Platform introspection
+    - Future admin tooling / dashboards
+    """
+    return {"agents": registry.list()}
+
+
+@router.post("/orchestrate", response_model=OrchestrateResponse)
+def orchestrate(
+    request_body: OrchestrateRequest,
+    request: Request,
+    x_operatorx_tier: str | None = Header(
+        default=None,
+        alias="X-OperatorX-Tier"
+    ),
+) -> OrchestrateResponse:
+    """
+    Orchestrates a plan using the shared Core Engine.
+
+    Architecture:
+    - API layer stays thin (no business logic here)
+    - CoreEngine is the only execution entry point
+    - Tier controls behavior via AgentContext
+    - request_id supports traceability end-to-end
+    """
+
+    # --------------------------------------------------------
+    # 1) Build execution context
+    # --------------------------------------------------------
+    # normalize_tier() ensures we always have a safe tier value:
+    #   personal / business / government (fallback handled inside normalize_tier)
+    #
+    # request_id is injected by RequestIdMiddleware and stored on request.state
+    ctx = AgentContext(
+        tier=normalize_tier(x_operatorx_tier),
+        request_id=getattr(request.state, "request_id", None),
+    )
+
+    # --------------------------------------------------------
+    # 2) Execute agent through Core Engine
+    # --------------------------------------------------------
+    # The engine:
+    # - resolves the agent by name
+    # - runs it safely
+    # - applies consistent logging + error handling
+    engine_result = engine.run_agent(
+        agent_name="orchestrator",
+        input_data=request_body.model_dump(),
+        ctx=ctx,
+    )
+
+    # --------------------------------------------------------
+    # 3) Handle errors (simple Phase 2 approach)
+    # --------------------------------------------------------
+    if not engine_result.ok:
+        # Keep error response deterministic and readable
+        return OrchestrateResponse(plan=[f"ERROR: {engine_result.error}"])
+
+    # --------------------------------------------------------
+    # 4) Return public-facing response only
+    # --------------------------------------------------------
+    # We only expose the plan; internal metadata stays inside EngineResult
+    return OrchestrateResponse(plan=engine_result.output.get("plan", []))
 class OrchestrateResponse(BaseModel):
     """
     Public-facing response returned by the orchestrator.
