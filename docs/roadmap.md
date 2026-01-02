@@ -23,7 +23,7 @@ The roadmap focuses on building a solid foundation first, followed by incrementa
 - Deployment tier folders
 - Initial roadmap and planning docs
 
-**Status:** In progress
+Foundation (Complete)
 
 ---
 
@@ -43,6 +43,8 @@ The roadmap focuses on building a solid foundation first, followed by incrementa
 - Core agent orchestration module
 - Initial health and status endpoints
 - Basic logging and error handling
+
+**Status:** In progress
 
 ---
 
