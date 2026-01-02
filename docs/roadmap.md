@@ -44,7 +44,7 @@ Foundation (Complete)
 - Initial health and status endpoints
 - Basic logging and error handling
 
-**Status:** In progress
+Phase 2 — Core Engine & Backend: COMPLETE
 
 ---
 
@@ -63,6 +63,8 @@ Foundation (Complete)
 - Sample domain agent
 - Agent lifecycle management
 - Basic evaluation agent
+
+**Status:** In progress
 
 ---
 
